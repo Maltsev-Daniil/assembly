@@ -3,9 +3,10 @@ BITS 64
 global _start
 
 section .data
+    EL_SIZE equ 4
+
     ROWS equ 2
     COLUMNS equ 3
-    EL_SIZE equ 4
 
     align EL_SIZE
     matrix dd 1, 6, 4
@@ -29,6 +30,9 @@ for_cols:
     ; sf == of
     jge cols_end
 
+    ; jg checks
+    ; zf = 0 || sf == of
+
     mov r9d, ROWS
     xor esi, esi
 
@@ -50,8 +54,9 @@ for_rows:
 
     ; обновляем максимум
     cmp edx, r10d
-    ; проверяем флаги sf != of || zf == 1
+    ; sf != of || zf == 1
     jle skip_update
+    ; jl checks sf != of
     mov r10d, edx
 skip_update:
 

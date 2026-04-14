@@ -16,8 +16,10 @@ section .data
     ; запишем сюда индекс
     ; файлового дескриптора
     input_fd dq 0
+    newline db 10
     buffer db BUFF_SIZE dup(0)
     line_buffer db LINE_SIZE dup(0)
+    result_buffer db LINE_SIZE dup(0)
 
 _start:
     call parse_args
@@ -67,8 +69,6 @@ read_loop:
 
     cmp rax, 0
     je eof
-
-    cmp rax, 0
     jl error_exit
 
     mov r14, rax
@@ -100,10 +100,10 @@ process_buffer:
 
 line_done:
 
-    ; TODO обработать строку
+    call process_line
+    call print_result
 
     xor r13, r13
-
     inc rcx
     jmp process_buffer
 
@@ -111,17 +111,139 @@ eof:
     cmp r13, 0
     je finish
 
-    ; TODO обработать строку
     ; мы дошли до конца файла
     ; но в буфере есть данные
     ; которые нужно обработать
+    call process_line
+    call print_result
 
 finish:
-    call print_result
+    ret
+
+; rsi - i in line_buffer
+; rdi - j in result_buffer
+; r13 - length of line
+; rdi - length of result
+process_line:
+    xor rsi, rsi
+    xor rdi, rdi
+    xor r10, r10 ; need space = false
+
+next:
+    cmp rsi, r13
+    jge process_line_done
+
+skip_spaces:
+    cmp rsi, r13
+    jge process_line_done
+
+    mov al, [line_buffer + rsi]
+    cmp al, ' '
+    je inc_i
+    cmp al, 9 ; \t
+    je inc_i
+    jmp word_start
+
+inc_i:
+    inc rsi
+    jmp skip_spaces
+
+word_start:
+    mov rbx, rsi ; start of word
+    xor r8, r8 ; length of word
+
+    mov al, [line_buffer + rsi]
+    call is_vowel
+    mov r9, rax ; is_vowel
+
+word_loop:
+    cmp rsi, r13
+    jge word_end
+
+    mov al, [line_buffer + rsi]
+    cmp al, ' '
+    je word_end
+    cmp al, 9 ; \t
+    je word_end
+
+    inc r8
+    inc rsi
+    jmp word_loop
+
+word_end:
+    ; проверяем тут, тк
+    ; нам нужен индекс следующего слова
+    cmp r9, 1
+    je next
+
+    cmp r10, 0
+    je no_space
+
+    mov byte [result_buffer + rdi], ' '
+    inc rdi
+
+no_space:
+    ; это надо чтобы мы занулили счетчик
+    xor rcx, rcx
+
+copy_loop:
+    ; r8 - length of word
+    cmp rcx, r8
+    jge copy_done
+
+    ; rbx - start of word
+    mov al, [line_buffer + rbx + rcx]
+    mov [result_buffer + rdi], al
+
+    inc rcx
+    inc rdi
+    jmp copy_loop
+
+copy_done:
+    mov r10, 1 ; need space = true
+    jmp next
+
+process_line_done:
+    mov r13, rdi ; length of result
     ret
 
 print_result:
-    ; TODO вывести в stdout результат
+    mov rax, SYS_WRITE
+    mov rdi, 1 ; stdout
+    mov rsi, result_buffer
+    mov rdx, r13 ; length of result
+    syscall
+
+    mov rax, SYS_WRITE
+    mov rdi, 1 ; stdout
+    mov rsi, newline ; \n
+    mov rdx, 1 ; lenght
+    syscall
+
+    ret
+
+; A  = 0100 0001
+; a =  0110 0001
+; 32 = 0010 0000
+is_vowel:
+    ; al - char
+    ; возвращаем 1 если гласная, 0 иначе
+    or al, 32 ; переводим в нижний регистр
+    cmp al, 'a'
+    je vowel
+    cmp al, 'e'
+    je vowel
+    cmp al, 'i'
+    je vowel
+    cmp al, 'o'
+    je vowel
+    cmp al, 'u'
+    je vowel
+    xor rax, rax
+    ret
+
+vowel:
+    mov rax, 1
     ret
 
 close_file:
