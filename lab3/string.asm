@@ -37,6 +37,7 @@ _start:
     syscall
 
 parse_args:
+    ; сдвиг происходит после call на +8
     mov rax, [rsp + 8]
     cmp rax, 2
     jl error_exit
@@ -45,8 +46,6 @@ parse_args:
     ret
 
 open_file:
-    ; TODO разобраться как работает этот
-    ; сискол
     mov rax, SYS_OPEN
     xor rsi, rsi
     xor rdx, rdx
@@ -102,8 +101,10 @@ process_buffer:
 
 line_done:
 
+    mov r12, rcx
     call process_line
     call print_result
+    mov rcx, r12
 
     xor r13, r13
     inc rcx
